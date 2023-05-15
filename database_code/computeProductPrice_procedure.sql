@@ -1,0 +1,78 @@
+create procedure computeProductPrice
+@client_id bigint, @product_id bigint
+AS
+
+if not exists(select * from client where client_id=@client_id)
+begin
+	select 'Такого клієнта не існує' as response
+	return;
+end
+
+if not exists(select * from product where @product_id=product_id)
+begin
+	select 'Такого продукту не існує' as response
+	return;
+end
+
+if (select client_is_cooperate from client where client_id=@client_id)=0
+begin
+	select 'Немає кооперації з наданим клієнтом' as response
+	return;
+end
+
+if (select product_is_available from product where product_id=@product_id)=0
+begin
+	select 'Продукт тимчасово недоступен для замовлення' as response
+	return;
+end
+
+declare @product_type int;
+declare @product_brand int;
+declare @basic_discount money;
+declare @product_price money;
+declare @received_price money;
+set @basic_discount = (select client_base_discount from client where client_id=@client_id)
+set @product_price = (select product_price from product where product_id=@product_id)
+set @product_brand =(select product_brand_id from product where product_id=@product_id)
+set @product_type = (select product_type_id from product where product_id=@product_id)
+
+if exists(select * from [client.possibilities]
+where possibilities_client_id=@client_id and possibilities_brand_id=@product_brand and possibilities_type_id=@product_type)
+begin
+	if(select possibilities_is_available from [client.possibilities]
+	where possibilities_client_id=@client_id and possibilities_brand_id=@product_brand and possibilities_type_id=@product_type)=0
+	begin
+		exec returnNotAvailable @client_id, @product_brand, @product_type
+		return;
+	end
+	set @received_price = (select @product_price-((@product_price*(@basic_discount/100))+(@product_price*(possibilities_discount_percent/100))+possibilities_discount_money) from [client.possibilities]
+	where possibilities_client_id=@client_id and possibilities_brand_id=@product_brand and possibilities_type_id=@product_type)
+end
+
+if exists(select * from [client.possibilities]
+where possibilities_client_id=@client_id and possibilities_brand_id is null and possibilities_type_id=@product_type)
+begin
+	if(select possibilities_is_available from [client.possibilities]
+	where possibilities_client_id=@client_id and possibilities_brand_id is null and possibilities_type_id=@product_type)=0
+	begin
+		exec returnNotAvailable @client_id, NULL, @product_type
+		return;
+	end
+	set @received_price = (select @product_price-((@product_price*(@basic_discount/100))+(@product_price*(possibilities_discount_percent/100))+possibilities_discount_money) from [client.possibilities]
+	where possibilities_client_id=@client_id and possibilities_brand_id is null and possibilities_type_id=@product_type)
+end
+
+if not exists(select * from [client.possibilities]
+where possibilities_client_id=@client_id and possibilities_type_id=@product_type and (possibilities_brand_id is null or possibilities_brand_id=@product_brand))
+begin
+	set @received_price = @product_price-(@product_price*(@basic_discount/100))
+end
+
+if @received_price<(select product_cost from product where product_id=@product_id)
+begin
+	select product_cost as response from product where product_id=@product_id;
+end
+else
+begin
+	select @received_price as response
+end

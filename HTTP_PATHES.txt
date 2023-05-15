@@ -1,0 +1,15 @@
+Можливі запити
+
+http://localhost:8080/dclink/brands
+
+http://localhost:8080/dclink/types
+
+http://localhost:8080/dclink/products
+
+http://localhost:8080/dclink/clients
+
+http://localhost:8080/dclink/possibilities
+
+http://localhost:8080/dclink/possibilities/0
+
+http://localhost:8080/dclink/product-with-discount/0/0
